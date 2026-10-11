@@ -4,7 +4,7 @@
 
 一个面向 AI Agent（Claude Code 等）的 **Java 远程断点调试 Skill**。它连接开启了 JDWP 的远程 JVM，由 AI 自主规划并设置断点、等待命中、采集调用栈和局部变量、做表达式求值与单步执行，最后基于**真实采集到的运行时数据**给出根因结论。
 
-核心是自研的 `.agents/skills/java-debug/scripts/jdi-client.jar`：只依赖 JDK 内置的 `com.sun.jdi`，零外部依赖，以常驻 HTTP 服务模式运行，所有操作都是一条 JSON 命令（`curl` 即可驱动）。
+核心是自研的 `.agents/skills/java-debug/scripts/jdi-client.jar`：只依赖 JDK 内置的 `com.sun.jdi`，零外部依赖（jar 不随发布，skill 首次运行时由随附源码在本地构建），以常驻 HTTP 服务模式运行，所有操作都是一条 JSON 命令（`curl` 即可驱动）。
 
 ---
 
@@ -104,26 +104,26 @@
 java-debug/
 ├── .agents/skills/java-debug/      # Skill 本体（安装时拷贝此目录）
 │   ├── SKILL.md                    # Skill 定义：工作流、命令参考、安全约束、错误处理
-│   └── scripts/
-│       └── jdi-client.jar          # 预构建的客户端
-└── code-source/jdi-client/         # 客户端源码（Maven 工程）
-    ├── build.sh
-    └── src/main/java/cn/ares/jvm/jdi/
-        ├── transport/              # HTTP / stdio 传输，零依赖 JSON
-        ├── command/                # 命令路由与各命令实现
-        ├── connection/             # 连接生命周期、并发配额
-        ├── session/                # JDWP 连接、线程与 ClassLoader 查询
-        ├── breakpoint/             # 断点与延迟断点
-        ├── execution/              # 事件循环、冻结 / 等待 / 恢复 / 单步状态机
-        ├── inspect/                # 栈、局部变量、值格式化
-        └── eval/                   # 表达式求值、危险方法拦截、静态调用
+│   ├── scripts/
+│   │   ├── ensure-jdi-client.sh    # 首次使用时构建 scripts/jdi-client.jar（jar 不随发布，已 git 忽略）
+│   │   └── jdi-client.jar          # 本地构建产物
+│   └── jdi-client/                 # 客户端源码（Maven 工程）
+│       ├── build.sh
+│       └── src/main/java/cn/ares/jvm/jdi/
+│           ├── transport/          # HTTP / stdio 传输，零依赖 JSON
+│           ├── command/            # 命令路由与各命令实现
+│           ├── connection/         # 连接生命周期、并发配额
+│           ├── session/            # JDWP 连接、线程与 ClassLoader 查询
+│           ├── breakpoint/         # 断点与延迟断点
+│           ├── execution/          # 事件循环、冻结 / 等待 / 恢复 / 单步状态机
+│           ├── inspect/            # 栈、局部变量、值格式化
+│           └── eval/               # 表达式求值、危险方法拦截、静态调用
 ```
 
-## 重新构建
+## 构建
 
 ```bash
-bash code-source/jdi-client/build.sh
-cp code-source/jdi-client/target/jdi-client-1.0.0.jar .agents/skills/java-debug/scripts/jdi-client.jar
+bash .agents/skills/java-debug/scripts/ensure-jdi-client.sh
 ```
 
-需要 Maven。JDK 8 下依赖 `$JAVA_HOME/../lib/tools.jar`，JDK 9+ 自带 `com.sun.jdi`。
+`scripts/jdi-client.jar` 不存在时，脚本优先用 Maven（`jdi-client/build.sh`）构建；没有 Maven 或 Maven 构建失败时，降级用本地 JDK 的 `javac` + `jar`。需要 JDK（只有 JRE 不行）：JDK 8 会自动加上 `tools.jar`，JDK 9+ 自带 `com.sun.jdi`。产物是 Java 8 字节码。脚本只检查 jar 是否存在，修改源码后需要先删掉 jar 再重新运行。

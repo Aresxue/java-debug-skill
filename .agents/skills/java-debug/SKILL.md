@@ -12,7 +12,7 @@ allowed-tools: [Read, Bash, Glob, Grep]
 
 Attach to a remote JVM that has JDWP enabled; the AI sets breakpoints, waits for hits, collects runtime state (call stack / local variables / expression evaluation), single-steps, and uses that to locate the root cause.
 
-The core is `scripts/jdi-client.jar` (a fat jar that uses only the JDK's built-in `com.sun.jdi`, zero external dependencies). It stays resident in HTTP server mode (**listening on 127.0.0.1 only**), and every operation is a JSON command sent with `curl` (POST MUST carry `Content-Type: application/json`).
+The core is `scripts/jdi-client.jar` (a fat jar that uses only the JDK's built-in `com.sun.jdi`, zero external dependencies). The jar is **not shipped with the skill**: on first use `scripts/ensure-jdi-client.sh` builds it locally from the bundled source `jdi-client/` (see Chapter 4). It stays resident in HTTP server mode (**listening on 127.0.0.1 only**), and every operation is a JSON command sent with `curl` (POST MUST carry `Content-Type: application/json`).
 
 **Core differences from jdb**:
 
@@ -157,6 +157,15 @@ There are three cases depending on the response; **do not treat "got a response"
 | JSON containing a `"connected"` field (e.g. `{"status":"ok","connected":true}`) | A leftover jdi-client instance, possibly connected to a different JVM | First wind it down per Chapter 7, then start |
 | Anything else (HTML, other JSON, `Empty reply`, etc.) | The port is occupied by **another program**, not jdi-client | Do not "wind it down"; start with `--server-port 15006` instead and change the port in all later commands accordingly |
 
+**Before starting, you MUST ensure the jar exists** (idempotent: returns immediately once the jar is built):
+
+```bash
+bash $HOME/.claude/skills/java-debug/scripts/ensure-jdi-client.sh
+```
+
+On success stdout is the jar path. If `scripts/jdi-client.jar` is missing, the script builds it from the bundled source `jdi-client/`: Maven (`jdi-client/build.sh`) first, falling back to the local JDK's `javac` + `jar` when Maven is absent or fails (e.g. offline). It needs a JDK, not just a JRE (`$JAVA_HOME/bin/javac` first, then `javac` on PATH; on JDK 8 `tools.jar` is added automatically). The jar is compiled to Java 8 bytecode, so it also runs on JDK 8 machines.
+On a non-zero exit, relay the stderr to the user verbatim and stop; see Chapter 9.
+
 **Start it with the Bash tool's `run_in_background: true`**, and record the returned shell id; Chapter 7 needs it for cleanup.
 
 The start command **depends on the JDK version of the machine running jdi-client** (unrelated to the version of the target JVM being debugged; JDI can debug a JVM older than itself):
@@ -202,7 +211,7 @@ curl -s --retry-connrefused --retry 5 --retry-delay 1 http://127.0.0.1:15005
 Expect `{"status":"ok","connected":true}`.
 
 > - `connected:false` → the target JVM does not have JDWP enabled or the port is unreachable; go back to Chapter 2 and check. If it turns `false` mid-debugging, the target has disconnected (see `VmDisconnected` in Chapter 9)
-> - The process does not start at all → confirm `java` is on PATH and the jar path exists (read the background shell's output)
+> - The process does not start at all → confirm `java` is on PATH and the jar path exists (read the background shell's output); if the jar is missing, run `ensure-jdi-client.sh` above first
 > - **The response is not JSON like the above (e.g. a chunk of HTML)** → the command port is occupied by another program, and you are talking to that program.
 >   The background shell output will contain `Failed to start HTTP server: Address already in use`. In this case jdi-client has already exited on its own and released
 >   the JDWP connection, so no cleanup is needed; restart directly with `--server-port 15006` and change the port in all later commands accordingly
@@ -634,6 +643,7 @@ Conclusions MUST be based on variable values actually collected. Write "not obse
 
 | Error | Meaning | Action |
 |------|------|------|
+| `ensure-jdi-client.sh` reports `javac not found` / `tools.jar not found` / `build failed` | The jar could not be built locally: only a JRE is installed, JDK 8 lacks `tools.jar`, or compilation failed (the Maven/javac output is in stderr) | Install a JDK or point `JAVA_HOME` at one, then rerun the script. Do not start jdi-client until the script exits 0 |
 | `NoClassDefFoundError: com/sun/jdi/...` | jdi-client was started with `java -jar` on JDK 8 | See Chapter 4: JDK 8 MUST use `-cp $JAVA_HOME/lib/tools.jar:...` and specify the main class |
 | `ConnectFailed` | Cannot connect to the remote JVM. Connection setup and the JDWP handshake each have a 10s limit; distinguish by message: `Connection refused` means the port is not listening; `attach timed out` means the network is unreachable / packets are dropped by a firewall; `handshake timed out` means the port is reachable but the peer is not JDWP or the target JVM is stuck; `connection closed by the target` / `not a JDWP agent` means the port is occupied by another service | Check the JDWP arguments (especially JDK 9+'s `address=*:`), the port, and network connectivity |
 | `Timeout` | Breakpoint not hit | ① First check the response for `deferred_failures` (the breakpoint was never actually installed) and `frozen_threads` (threads reported but not released; resume them one by one); ② confirm the request was triggered; ③ the breakpoint is not on the actual execution path; move it. For `step` timeouts see Step 6c; judge from the message whether the thread is still frozen |
@@ -669,7 +679,8 @@ This skill executes no commands; it only fills in the template below according t
 - For the start command in step 2, pick one of the two according to the **target machine's** JDK version, using the same rules as Chapter 4
 
 ````
-# 0. Copy jdi-client to the target machine (run on this machine)
+# 0. Build jdi-client if missing, then copy it to the target machine (run on this machine)
+bash $HOME/.claude/skills/java-debug/scripts/ensure-jdi-client.sh
 scp $HOME/.claude/skills/java-debug/scripts/jdi-client.jar <user>@<host>:/tmp/jdi-client.jar
 # 1. Confirm JDWP is listening (if not enabled, the JVM MUST be restarted with -agentlib, see Chapter 2)
 #    JDK 9+: write address=*:<port> (under zsh the whole -agentlib argument MUST be double-quoted, otherwise * is eaten by glob)
@@ -770,14 +781,14 @@ curl -s http://127.0.0.1:15005 -H 'Content-Type: application/json' -d '{"cmd":"e
 
 ## Rebuilding the jar
 
-The source is not shipped with the installed skill; it lives in the source repository under `code-source/jdi-client/`. After changing the Java code there, rebuild it from the repository root (requires Maven; on JDK 8 it depends on `$JAVA_HOME/../lib/tools.jar`, on JDK 9+ `com.sun.jdi` is built in):
+The source ships with the skill under `jdi-client/` (a Maven project; the jar itself is never shipped). `ensure-jdi-client.sh` only checks whether the jar exists, not whether it is older than the source, so after changing the Java code (or upgrading the skill), delete the old jar and rerun the script:
 
 ```bash
-bash code-source/jdi-client/build.sh
-cp code-source/jdi-client/target/jdi-client-1.0.0.jar .agents/skills/java-debug/scripts/jdi-client.jar
+rm $HOME/.claude/skills/java-debug/scripts/jdi-client.jar
+bash $HOME/.claude/skills/java-debug/scripts/ensure-jdi-client.sh
 ```
 
-If the skill is installed as a copy, also copy the jar to `$HOME/.claude/skills/java-debug/scripts/jdi-client.jar` for it to take effect.
+The script tries `jdi-client/build.sh` (Maven) first and falls back to `javac` + `jar`; on JDK 8 it depends on `tools.jar`, on JDK 9+ `com.sun.jdi` is built in.
 
 Source layout (packages under `cn.ares.jvm.jdi` are split by domain, with one-way top-down dependencies):
 - Root package: `JdiClient` (main + assembly + transport selection), `ClientOptions` (CLI arguments)

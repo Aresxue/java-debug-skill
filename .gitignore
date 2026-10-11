@@ -1,0 +1,3 @@
+# Built locally on first use by scripts/ensure-jdi-client.sh; must not be published
+.agents/skills/java-debug/scripts/jdi-client.jar
+.agents/skills/java-debug/jdi-client/target/

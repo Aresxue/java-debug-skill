@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 A **Java remote breakpoint debugging Skill** for AI agents such as Claude Code. It attaches to a remote JVM with JDWP enabled. The AI plans and sets breakpoints, waits for hits, collects call stacks and local variables, evaluates expressions and single-steps. It then reports a root cause based only on **runtime data it actually collected**.
 
-At its core is the in-house `.agents/skills/java-debug/scripts/jdi-client.jar`. It uses only the JDK's built-in `com.sun.jdi` and has zero external dependencies. It runs as a resident HTTP server, and every operation is a single JSON command, so `curl` is all you need to drive it.
+At its core is the in-house `.agents/skills/java-debug/scripts/jdi-client.jar`. It uses only the JDK's built-in `com.sun.jdi` and has zero external dependencies. The jar is not shipped; it is built locally from the bundled source the first time the skill runs. It runs as a resident HTTP server, and every operation is a single JSON command, so `curl` is all you need to drive it.
 
 ---
 
@@ -104,26 +104,26 @@ See [SKILL.md](.agents/skills/java-debug/SKILL.md) for the full workflow, comman
 java-debug/
 ├── .agents/skills/java-debug/      # The Skill itself (install this directory)
 │   ├── SKILL.md                    # Skill definition: workflow, command reference, safety rules, error handling
-│   └── scripts/
-│       └── jdi-client.jar          # Prebuilt client
-└── code-source/jdi-client/         # Client source (Maven project)
-    ├── build.sh
-    └── src/main/java/cn/ares/jvm/jdi/
-        ├── transport/              # HTTP / stdio transport, zero-dependency JSON
-        ├── command/                # Command routing and command handlers
-        ├── connection/             # Connection lifecycle, concurrency permits
-        ├── session/                # JDWP connection, thread and classloader lookup
-        ├── breakpoint/             # Breakpoints and deferred breakpoints
-        ├── execution/              # Event loop; freeze / wait / resume / step state machine
-        ├── inspect/                # Stack, locals, value formatting
-        └── eval/                   # Expression evaluation, dangerous-method guard, static calls
+│   ├── scripts/
+│   │   ├── ensure-jdi-client.sh    # Builds scripts/jdi-client.jar on first use (not shipped, git-ignored)
+│   │   └── jdi-client.jar          # Local build output
+│   └── jdi-client/                 # Client source (Maven project)
+│       ├── build.sh
+│       └── src/main/java/cn/ares/jvm/jdi/
+│           ├── transport/          # HTTP / stdio transport, zero-dependency JSON
+│           ├── command/            # Command routing and command handlers
+│           ├── connection/         # Connection lifecycle, concurrency permits
+│           ├── session/            # JDWP connection, thread and classloader lookup
+│           ├── breakpoint/         # Breakpoints and deferred breakpoints
+│           ├── execution/          # Event loop; freeze / wait / resume / step state machine
+│           ├── inspect/            # Stack, locals, value formatting
+│           └── eval/               # Expression evaluation, dangerous-method guard, static calls
 ```
 
-## Rebuilding
+## Building
 
 ```bash
-bash code-source/jdi-client/build.sh
-cp code-source/jdi-client/target/jdi-client-1.0.0.jar .agents/skills/java-debug/scripts/jdi-client.jar
+bash .agents/skills/java-debug/scripts/ensure-jdi-client.sh
 ```
 
-Requires Maven. On JDK 8 the build depends on `$JAVA_HOME/../lib/tools.jar`; JDK 9+ ships `com.sun.jdi` built in.
+If `scripts/jdi-client.jar` is missing, the script builds it with Maven (`jdi-client/build.sh`) and falls back to the local JDK's `javac` + `jar` when Maven is absent or fails. It needs a JDK (not just a JRE); on JDK 8 it adds `tools.jar` automatically, while JDK 9+ ships `com.sun.jdi` built in. The output is Java 8 bytecode. The script only checks that the jar exists, so after changing the source, delete the jar and rerun it.
