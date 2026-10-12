@@ -83,7 +83,18 @@
    java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 -jar app.jar
    ```
 
-2. 把 `.agents/skills/java-debug/` 目录拷贝（或软链）到 `~/.claude/skills/java-debug/`，在 Agent 中调用：
+2. 用 [`npx skills`](https://skills.sh/) 安装 Skill，然后在 Agent 中调用：
+
+   ```bash
+   # 全局安装到 Claude Code（~/.claude/skills/java-debug）
+   npx skills add Aresxue/java-debug-skill --skill java-debug -g -a claude-code
+   # 项目级安装（./.claude/skills/java-debug），随项目提交
+   npx skills add Aresxue/java-debug-skill --skill java-debug -a claude-code
+   # 其他 Agent，如 Codex / Cursor（不加 -a 则交互选择）
+   npx skills add Aresxue/java-debug-skill --skill java-debug -g -a codex -a cursor
+   ```
+
+   也可以手动把 `.agents/skills/java-debug/` 拷贝（或软链）到对应 Agent 的 skills 目录。首次运行需要本地有 JDK 来构建 jar（见[构建](#构建)）。
 
    ```text
    /java-debug 10.0.1.5:5005 --repo /path/to/repo

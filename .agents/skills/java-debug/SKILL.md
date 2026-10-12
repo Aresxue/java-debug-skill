@@ -14,6 +14,8 @@ Attach to a remote JVM that has JDWP enabled; the AI sets breakpoints, waits for
 
 The core is `scripts/jdi-client.jar` (a fat jar that uses only the JDK's built-in `com.sun.jdi`, zero external dependencies). The jar is **not shipped with the skill**: on first use `scripts/ensure-jdi-client.sh` builds it locally from the bundled source `jdi-client/` (see Chapter 4). It stays resident in HTTP server mode (**listening on 127.0.0.1 only**), and every operation is a JSON command sent with `curl` (POST MUST carry `Content-Type: application/json`).
 
+**`<SKILL_DIR>`** in the commands below is the absolute path of the directory containing this SKILL.md. It depends on how the skill was installed (global or project scope, and which agent), e.g. `~/.claude/skills/java-debug`, `<project>/.claude/skills/java-debug`, `~/.agents/skills/java-debug`. Take it from where this file was loaded and write it into each command as a literal absolute path; do not keep it in a shell variable, since shell state does not survive between commands.
+
 **Core differences from jdb**:
 
 | Aspect | jdb | This Skill |
@@ -160,10 +162,10 @@ There are three cases depending on the response; **do not treat "got a response"
 **Before starting, you MUST ensure the jar exists** (idempotent: returns immediately once the jar is built):
 
 ```bash
-bash $HOME/.claude/skills/java-debug/scripts/ensure-jdi-client.sh
+bash <SKILL_DIR>/scripts/ensure-jdi-client.sh
 ```
 
-On success stdout is the jar path. If `scripts/jdi-client.jar` is missing, the script builds it from the bundled source `jdi-client/`: Maven (`jdi-client/build.sh`) first, falling back to the local JDK's `javac` + `jar` when Maven is absent or fails (e.g. offline). It needs a JDK, not just a JRE (`$JAVA_HOME/bin/javac` first, then `javac` on PATH; on JDK 8 `tools.jar` is added automatically). The jar is compiled to Java 8 bytecode, so it also runs on JDK 8 machines.
+On success stdout is the jar path (`<SKILL_DIR>/scripts/jdi-client.jar`). If `scripts/jdi-client.jar` is missing, the script builds it from the bundled source `jdi-client/`: Maven (`jdi-client/build.sh`) first, falling back to the local JDK's `javac` + `jar` when Maven is absent or fails (e.g. offline). It needs a JDK, not just a JRE (`$JAVA_HOME/bin/javac` first, then `javac` on PATH; on JDK 8 `tools.jar` is added automatically). The jar is compiled to Java 8 bytecode, so it also runs on JDK 8 machines.
 On a non-zero exit, relay the stderr to the user verbatim and stop; see Chapter 9.
 
 **Start it with the Bash tool's `run_in_background: true`**, and record the returned shell id; Chapter 7 needs it for cleanup.
@@ -172,10 +174,10 @@ The start command **depends on the JDK version of the machine running jdi-client
 
 ```bash
 # JDK 9+: com.sun.jdi is already a built-in module, use -jar directly
-java -jar $HOME/.claude/skills/java-debug/scripts/jdi-client.jar --server --server-port 15005 --host 10.0.1.5 --port 5005
+java -jar <SKILL_DIR>/scripts/jdi-client.jar --server --server-port 15005 --host 10.0.1.5 --port 5005
 
 # JDK 8: you MUST manually put tools.jar on the classpath and specify the main class explicitly
-java -cp $JAVA_HOME/lib/tools.jar:$HOME/.claude/skills/java-debug/scripts/jdi-client.jar cn.ares.jvm.jdi.JdiClient --server --server-port 15005 --host 10.0.1.5 --port 5005
+java -cp $JAVA_HOME/lib/tools.jar:<SKILL_DIR>/scripts/jdi-client.jar cn.ares.jvm.jdi.JdiClient --server --server-port 15005 --host 10.0.1.5 --port 5005
 ```
 
 > **JDK 8 cannot use `java -jar`**: in JDK 8, `com.sun.jdi.*` lives in `tools.jar`, and `tools.jar` is not on the default classpath;
@@ -680,8 +682,8 @@ This skill executes no commands; it only fills in the template below according t
 
 ````
 # 0. Build jdi-client if missing, then copy it to the target machine (run on this machine)
-bash $HOME/.claude/skills/java-debug/scripts/ensure-jdi-client.sh
-scp $HOME/.claude/skills/java-debug/scripts/jdi-client.jar <user>@<host>:/tmp/jdi-client.jar
+bash <SKILL_DIR>/scripts/ensure-jdi-client.sh
+scp <SKILL_DIR>/scripts/jdi-client.jar <user>@<host>:/tmp/jdi-client.jar
 # 1. Confirm JDWP is listening (if not enabled, the JVM MUST be restarted with -agentlib, see Chapter 2)
 #    JDK 9+: write address=*:<port> (under zsh the whole -agentlib argument MUST be double-quoted, otherwise * is eaten by glob)
 #    JDK 8: write address=<port>; JDK 8 does not support the *: syntax and would report gethostbyname: unknown host
@@ -784,8 +786,8 @@ curl -s http://127.0.0.1:15005 -H 'Content-Type: application/json' -d '{"cmd":"e
 The source ships with the skill under `jdi-client/` (a Maven project; the jar itself is never shipped). `ensure-jdi-client.sh` only checks whether the jar exists, not whether it is older than the source, so after changing the Java code (or upgrading the skill), delete the old jar and rerun the script:
 
 ```bash
-rm $HOME/.claude/skills/java-debug/scripts/jdi-client.jar
-bash $HOME/.claude/skills/java-debug/scripts/ensure-jdi-client.sh
+rm <SKILL_DIR>/scripts/jdi-client.jar
+bash <SKILL_DIR>/scripts/ensure-jdi-client.sh
 ```
 
 The script tries `jdi-client/build.sh` (Maven) first and falls back to `javac` + `jar`; on JDK 8 it depends on `tools.jar`, on JDK 9+ `com.sun.jdi` is built in.

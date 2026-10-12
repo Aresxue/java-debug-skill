@@ -83,7 +83,18 @@ Remote debugging is inherently dangerous: JDWP has no authentication, so anyone 
    java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 -jar app.jar
    ```
 
-2. Copy (or symlink) `.agents/skills/java-debug/` to `~/.claude/skills/java-debug/` and invoke it from the agent:
+2. Install the skill with [`npx skills`](https://skills.sh/), then invoke it from the agent:
+
+   ```bash
+   # Global, for Claude Code (~/.claude/skills/java-debug)
+   npx skills add Aresxue/java-debug-skill --skill java-debug -g -a claude-code
+   # Project scope (./.claude/skills/java-debug), committed with the project
+   npx skills add Aresxue/java-debug-skill --skill java-debug -a claude-code
+   # Other agents, e.g. Codex / Cursor (omit -a to pick interactively)
+   npx skills add Aresxue/java-debug-skill --skill java-debug -g -a codex -a cursor
+   ```
+
+   Copying (or symlinking) `.agents/skills/java-debug/` into the agent's skills directory by hand works too. The first run needs a local JDK to build the jar (see [Building](#building)).
 
    ```text
    /java-debug 10.0.1.5:5005 --repo /path/to/repo
