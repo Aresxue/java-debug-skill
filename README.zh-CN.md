@@ -72,6 +72,38 @@
 
 ---
 
+## 安装
+
+通过 [`npx skills`](https://skills.sh/) 从 [github.com/Aresxue/java-debug-skill](https://github.com/Aresxue/java-debug-skill) 安装（需要 Node.js）。推荐全局安装，所有项目都能用：
+
+```bash
+# 推荐：全局安装到 Claude Code（~/.claude/skills/java-debug）
+npx skills add https://github.com/Aresxue/java-debug-skill --skill java-debug -g -a claude-code -y
+```
+
+其他方式：
+
+```bash
+# 一次性全局安装给多个 Agent（不加 -a 则交互选择）
+npx skills add https://github.com/Aresxue/java-debug-skill --skill java-debug -g -a claude-code -a codex -a cursor
+
+# 项目级安装（./.claude/skills/java-debug），随项目提交、团队共享
+npx skills add https://github.com/Aresxue/java-debug-skill --skill java-debug -a claude-code
+
+# 查看已安装 / 更新 / 卸载
+npx skills ls -g
+npx skills update java-debug -g
+npx skills remove java-debug -g
+```
+
+说明：
+
+- `jdi-client.jar` 不随发布，Skill 首次运行时由随附源码在本地构建，因此机器上需要 JDK（只有 JRE 不行）；有 Maven 用 Maven，否则降级用 `javac`。详见[构建](#构建)。
+- 执行 `npx skills update` 后，删掉 Skill 目录下旧的 `scripts/jdi-client.jar`，下次运行会用新源码重新构建。
+- 也可以手动安装：把 `.agents/skills/java-debug/` 拷贝（或软链）到对应 Agent 的 skills 目录，如 `~/.claude/skills/java-debug/`。
+
+---
+
 ## 快速开始
 
 1. 目标 JVM 用 JDWP 参数启动，并用 `-g` 编译（Maven / Gradle 默认就是）：
@@ -83,18 +115,7 @@
    java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 -jar app.jar
    ```
 
-2. 用 [`npx skills`](https://skills.sh/) 安装 Skill，然后在 Agent 中调用：
-
-   ```bash
-   # 全局安装到 Claude Code（~/.claude/skills/java-debug）
-   npx skills add Aresxue/java-debug-skill --skill java-debug -g -a claude-code
-   # 项目级安装（./.claude/skills/java-debug），随项目提交
-   npx skills add Aresxue/java-debug-skill --skill java-debug -a claude-code
-   # 其他 Agent，如 Codex / Cursor（不加 -a 则交互选择）
-   npx skills add Aresxue/java-debug-skill --skill java-debug -g -a codex -a cursor
-   ```
-
-   也可以手动把 `.agents/skills/java-debug/` 拷贝（或软链）到对应 Agent 的 skills 目录。首次运行需要本地有 JDK 来构建 jar（见[构建](#构建)）。
+2. 安装 Skill（见[安装](#安装)），然后在 Agent 中调用：
 
    ```text
    /java-debug 10.0.1.5:5005 --repo /path/to/repo

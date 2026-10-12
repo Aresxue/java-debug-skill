@@ -72,6 +72,38 @@ Remote debugging is inherently dangerous: JDWP has no authentication, so anyone 
 
 ---
 
+## Installation
+
+Install from [github.com/Aresxue/java-debug-skill](https://github.com/Aresxue/java-debug-skill) with [`npx skills`](https://skills.sh/) (requires Node.js). A global install is recommended, so the skill is available in every project:
+
+```bash
+# Recommended: global install for Claude Code (~/.claude/skills/java-debug)
+npx skills add https://github.com/Aresxue/java-debug-skill --skill java-debug -g -a claude-code -y
+```
+
+Other options:
+
+```bash
+# Global install for several agents at once (omit -a to pick agents interactively)
+npx skills add https://github.com/Aresxue/java-debug-skill --skill java-debug -g -a claude-code -a codex -a cursor
+
+# Project scope (./.claude/skills/java-debug), committed with the project and shared with the team
+npx skills add https://github.com/Aresxue/java-debug-skill --skill java-debug -a claude-code
+
+# List installed skills / update / uninstall
+npx skills ls -g
+npx skills update java-debug -g
+npx skills remove java-debug -g
+```
+
+Notes:
+
+- `jdi-client.jar` is not shipped; it is built locally from the bundled source the first time the skill runs, so the machine needs a JDK (a JRE is not enough). Maven is used if present, otherwise plain `javac`. See [Building](#building).
+- After `npx skills update`, delete the old `scripts/jdi-client.jar` under the skill directory so the next run rebuilds it from the new source.
+- Manual install also works: copy (or symlink) `.agents/skills/java-debug/` into the agent's skills directory, e.g. `~/.claude/skills/java-debug/`.
+
+---
+
 ## Quick start
 
 1. Start the target JVM with JDWP and compile it with `-g` (the Maven / Gradle default):
@@ -83,18 +115,7 @@ Remote debugging is inherently dangerous: JDWP has no authentication, so anyone 
    java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 -jar app.jar
    ```
 
-2. Install the skill with [`npx skills`](https://skills.sh/), then invoke it from the agent:
-
-   ```bash
-   # Global, for Claude Code (~/.claude/skills/java-debug)
-   npx skills add Aresxue/java-debug-skill --skill java-debug -g -a claude-code
-   # Project scope (./.claude/skills/java-debug), committed with the project
-   npx skills add Aresxue/java-debug-skill --skill java-debug -a claude-code
-   # Other agents, e.g. Codex / Cursor (omit -a to pick interactively)
-   npx skills add Aresxue/java-debug-skill --skill java-debug -g -a codex -a cursor
-   ```
-
-   Copying (or symlinking) `.agents/skills/java-debug/` into the agent's skills directory by hand works too. The first run needs a local JDK to build the jar (see [Building](#building)).
+2. Install the skill (see [Installation](#installation)), then invoke it from the agent:
 
    ```text
    /java-debug 10.0.1.5:5005 --repo /path/to/repo
